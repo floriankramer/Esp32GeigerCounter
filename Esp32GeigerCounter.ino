@@ -198,6 +198,10 @@ void onEvent(ev_t ev) {
 // COUNTING AND NETWORK
 // =========================================================================
 
+unsigned char *getQueueEntry(unsigned int index) {
+  return packet_buffers + index * PACKET_BUFFER_SIZE;
+}
+
 /**
    Package Format
    The package format is as follows
@@ -217,11 +221,8 @@ void sendNextPacket() {
   // Avoid underflows
   if (packet_queue_length > 0) {
     packet_queue_length--;
-  }
-
-  if (packet_queue_length > 0) {
     // Set the next packet to be send
-    LMIC_setTxData2(LORA_DATA_PORT, packet_buffers + packet_queue_index,
+    LMIC_setTxData2(LORA_DATA_PORT, getQueueEntry(packet_queue_index),
                     packet_lengths[packet_queue_index], 0);
   }
 }
@@ -238,7 +239,7 @@ void finishCountingCycle() {
   uint_fast8_t i =
       (packet_queue_index + packet_queue_length) % PACKET_QUEUE_LENGTH;
   length = &packet_lengths[i];
-  buffer = packet_buffers + i;
+  buffer = getQueueEntry(i);
   packet_queue_length++;
 
   uint_fast8_t offset = 0;
@@ -326,15 +327,13 @@ void setup() {
   Serial.begin(115200);
   Serial.println("Beginning setup");
 
-  // TODO(florian): Find out if this should be pullup / pulldown
+  // The PiGI board does its own external pullup of these pins
   pinMode(GEIGER_PIN, INPUT);
 
   // initialize the lmic environment
   os_init();
   osjob_t initjob;
   os_setCallback(&initjob, initLMIC);
-
-  // initialize the packet queue
 
   // Initialize the geiger counter
   geiger_counts_index = 0;

@@ -46,9 +46,9 @@ contents of that file into the field for the decoder function in the consoles
 web interface.
 
 ## Hardware
-The code should work with any form of sensor that sends signals by pulling a line to ground, but it was designed to work with the open source [PiGi](https://github.com/apollo-ng/PiGI) platform, and was only tested together with that.
+The code should work with any form of sensor that sends signals by pulling a line to ground, but it was designed to work with the open source [PiGI](https://github.com/apollo-ng/PiGI) platform, and was only tested together with that.
 
-### PiGi + TTGo v2.1
+### PiGI + TTGo v2.1
 Pins to connect:  
 
 | PiGI  | TTGo    |
