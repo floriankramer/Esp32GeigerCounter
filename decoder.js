@@ -41,7 +41,7 @@ function Decoder(bytes, port) {
      */
     decoded.timestamp = readInt16(bytes, 0); 
     decoded.measurements = [];
-    var off = 4;
+    var off = 2;
     for (var i = 0; i < NUM_MEASUREMENTS; i++) {
       l = readIntVbe(bytes, off, DISCARDED_BITS);
       decoded.measurements.push(l[0]);
