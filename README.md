@@ -47,11 +47,13 @@ web interface.
 
 ## Hardware
 The code should work with any form of sensor that sends signals by pulling a line to ground, but it was designed to work with the open source [PiGi](https://github.com/apollo-ng/PiGI) platform, and was only tested together with that.
+
 ### PiGi + TTGo v2.1
-Pins to connect:
-| PiGI        |  TTGo     |
-|-------------|-----------|
-| 1           | 3.3V      |
-| 2           | 5V        |
-| 7           | GPIO 0    |
-| 25          | GnD       |
+Pins to connect:  
+
+| PiGI  | TTGo    |
+| ----- | ------- |
+| 1     | 3.3V    |
+| 2     | 5V      |
+| 7     | GPIO 0  |
+| 25    | GnD     |
