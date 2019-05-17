@@ -9,14 +9,13 @@
 
 // Change these values to the values provided by the ttn console.
 // Choose lsb as the byte order in the console.
-const char DEVEUI[8] PROGMEM = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-const char APPEUI[8] PROGMEM = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-const char APPKEY[16] PROGMEM = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                                 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                                 0x00, 0x00, 0x00, 0x00};
+const char DEVEUI[8] PROGMEM = { 0x22, 0x3C, 0x84, 0x68, 0x07, 0x8F, 0xEC, 0x00 };
+const char APPEUI[8] PROGMEM = { 0xF1, 0x8A, 0x01, 0xD0, 0x7E, 0xD5, 0xB3, 0x70 };
+// The appkey should be in msb.
+const char APPKEY[16] PROGMEM = { 0xB5, 0xCA, 0xBE, 0x45, 0x9B, 0x79, 0x4D, 0x1B, 0x0A, 0x0A, 0x65, 0x50, 0xA0, 0x48, 0x42, 0x25 };
 
 // The pin to which the sensor is wired
-#define GEIGER_PIN 0
+#define GEIGER_PIN 26
 
 // The following settings control the packet sending behaviour. Due to the
 // overhead a package might have (at least 13 bytes) combining as many
@@ -25,12 +24,12 @@ const char APPKEY[16] PROGMEM = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 
 // The number of seconds between two lora packets.
 // DEFAULT: 900
-#define SEND_PERIOD 900
+#define SEND_PERIOD 30
 
 // The number of measurements transferred per packet. If this number gets to
 // high and error will occur during compilation, as a lmic lora packet may only
 // contain 51 bytes DEFAULT: 10
-#define NUM_MEASUREMENTS 10
+#define NUM_MEASUREMENTS 1
 
 // This can be used to prevent sending of data if nothing was counted by the
 // sensor yet. As this brakes the constant time assumption between measurements
@@ -74,7 +73,7 @@ const char APPKEY[16] PROGMEM = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 // Select the correct radio chip config
 #ifdef TTGOV21
 #define CFG_sx1276_radio 1
-#elif TTGOv21_NEW
+#elif TTGOV21_OLD
 #define CFG_sx1276_radio 1
 #elif HELTEC32_1
 #define CFG_sx1276_radio 1
@@ -97,15 +96,15 @@ const char APPKEY[16] PROGMEM = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 #ifdef TTGOV21
 const lmic_pinmap lmic_pins = {.nss = 18,
                                .rxtx = LMIC_UNUSED_PIN,
-                               .rst = LMIC_UNUSED_PIN,
+                               .rst = 23,
                                .dio = {26, 33, 32},
                                .sck = 5,
                                .mosi = 27,
                                .miso = 19};
-#elif TTGOv21_NEW
+#elif TTGOV21_OLD
 const lmic_pinmap lmic_pins = {.nss = 18,
                                .rxtx = LMIC_UNUSED_PIN,
-                               .rst = 23,
+                               .rst = LMIC_UNUSED_PIN,
                                .dio = {26, 33, 32},
                                .sck = 5,
                                .mosi = 27,
@@ -156,20 +155,43 @@ const uint_fast32_t DISCARDED_BITS_ROUNDING =
 // LMIC CALLBACKS
 // =========================================================================
 
+void printHex(u1_t *buf, int count) {
+  for (int i = 0; i < count; i++) {
+    Serial.print(buf[i], HEX);
+    Serial.print(" ");
+  }
+}
+
 /**
    @brief Writes the device eui to buf
 */
-void os_getDevEui(u1_t *buf) { memcpy_P(buf, DEVEUI, 8); }
+void os_getDevEui(u1_t *buf) {
+  memcpy_P(buf, DEVEUI, 8);
+  Serial.print("DEVEUI ");
+  printHex(buf, 8);
+  Serial.println();
+}
 
 /**
    @brief Writes the application eui to buf
 */
-void os_getArtEui(u1_t *buf) { memcpy_P(buf, APPEUI, 8); }
+void os_getArtEui(u1_t *buf) {
+  memcpy_P(buf, APPEUI, 8);
+  Serial.print("APPEUI ");
+  printHex(buf, 8);
+  Serial.println();
+}
 
 /**
    @brief Writes the application key to buf
 */
-void os_getDevKey(u1_t *buf) { memcpy_P(buf, APPKEY, 16); }
+void os_getDevKey(u1_t *buf) {
+  memcpy_P(buf, APPKEY, 16);
+  
+  Serial.print("APPKEY ");
+  printHex(buf, 16);
+  Serial.println();
+}
 
 /**
    @brief Handler function for all lmic callbacks.
@@ -185,12 +207,21 @@ void onEvent(ev_t ev) {
   case EV_JOIN_FAILED:
     Serial.println("Join failed");
     break;
+  case EV_REJOIN_FAILED:
+    Serial.println("Rejoin failed");
+    break;
   case EV_RXCOMPLETE:
     // handle downstream data
     break;
   case EV_TXCOMPLETE:
     // Send the next queued message.
     sendNextPacket();
+    break;
+  case EV_LINK_DEAD:
+    Serial.println("lmic link is dead");
+    break;
+  case EV_LINK_ALIVE:
+    Serial.println("lmic link is alive");
     break;
   }
 }
@@ -222,8 +253,14 @@ void sendNextPacket() {
   if (packet_queue_length > 0) {
     packet_queue_length--;
     // Set the next packet to be send
-    LMIC_setTxData2(LORA_DATA_PORT, getQueueEntry(packet_queue_index),
-                    packet_lengths[packet_queue_index], 0);
+    // LMIC_setTxData2(LORA_DATA_PORT, getQueueEntry(packet_queue_index),
+    //                packet_lengths[packet_queue_index], 0);
+    Serial.print("Data ");
+    Serial.println(packet_lengths[packet_queue_index]);
+    printHex(getQueueEntry(packet_queue_index), packet_lengths[packet_queue_index]);
+    Serial.println();
+    Serial.println("Data Done");
+    sendNextPacket();
   }
 }
 
@@ -260,6 +297,8 @@ void finishCountingCycle() {
     // discard the least significant DISCARDED_BITS bits
     uint_fast32_t m =
         (geiger_counts[i] + DISCARDED_BITS_ROUNDING) >> DISCARDED_BITS;
+    Serial.print("Mesasurement: ");
+    Serial.println(m);
     // Encode the integer using a variable byte encoding.
     // The highest bit of every byte but the last of the integer will be
     // set to 0. Use at most MAX_BYTES_PER_COUNT bytes for the encoding.
@@ -282,9 +321,12 @@ void finishCountingCycle() {
     // initialized. If packet_queue_length was greater than one another packet
     // is waiting to be transfered by lmic and sendNextPacket will be called as
     // soon as that packet was send.
-    LMIC_setTxData2(LORA_DATA_PORT, buffer, packet_lengths[packet_queue_index],
-                    0);
+    // LMIC_setTxData2(LORA_DATA_PORT, buffer, packet_lengths[packet_queue_index],
+    //                 0);
+    sendNextPacket();
   }
+  // TODO: DEBUG CODE
+  sendNextPacket();
 }
 
 // Moves to the next entry in the geiger_counts array
