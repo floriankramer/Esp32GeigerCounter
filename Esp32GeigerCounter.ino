@@ -102,18 +102,12 @@ const char APPKEY[16] PROGMEM = {0xB5, 0xCA, 0xBE, 0x45, 0x9B, 0x79,
 const lmic_pinmap lmic_pins = {.nss = 18,
                                .rxtx = LMIC_UNUSED_PIN,
                                .rst = 23,
-                               .dio = {26, 33, 32},
-                               .sck = 5,
-                               .mosi = 27,
-                               .miso = 19};
+                               .dio = {26, 33, 32}};
 #elif TTGOV21_OLD
 const lmic_pinmap lmic_pins = {.nss = 18,
                                .rxtx = LMIC_UNUSED_PIN,
                                .rst = LMIC_UNUSED_PIN,
-                               .dio = {26, 33, 32},
-                               .sck = 5,
-                               .mosi = 27,
-                               .miso = 19};
+                               .dio = {26, 33, 32}};
 #elif HELTEC32_1
 const lmic_pinmap lmic_pins = {.nss = 18,
                                .rxtx = LMIC_UNUSED_PIN,

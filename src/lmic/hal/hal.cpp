@@ -77,7 +77,7 @@ static void hal_io_check() {
 static const SPISettings settings(10E6, MSBFIRST, SPI_MODE0);
 
 static void hal_spi_init () {
-    SPI.begin(lmic_pins.sck, lmic_pins.miso, lmic_pins.mosi, lmic_pins.nss);
+    SPI.begin();
 }
 
 void hal_pin_nss (u1_t val) {

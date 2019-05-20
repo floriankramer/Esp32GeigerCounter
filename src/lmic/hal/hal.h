@@ -17,10 +17,6 @@ struct lmic_pinmap {
     u1_t rxtx;
     u1_t rst;
     u1_t dio[NUM_DIO];
-    // These ports are for the SPI init
-    u1_t sck;
-    u1_t mosi;
-    u1_t miso;
 };
 
 // Use this for any unused pins.
