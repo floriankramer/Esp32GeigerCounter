@@ -9,18 +9,25 @@
 
 // Change these values to the values provided by the ttn console.
 // Choose lsb as the byte order in the console.
-const char DEVEUI[8] PROGMEM = {0x22, 0x3C, 0x84, 0x68, 0x07, 0x8F, 0xEC, 0x00};
-const char APPEUI[8] PROGMEM = {0xF1, 0x8A, 0x01, 0xD0, 0x7E, 0xD5, 0xB3, 0x70};
+const char DEVEUI[8] PROGMEM = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+const char APPEUI[8] PROGMEM = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 // The appkey should be in msb.
-const char APPKEY[16] PROGMEM = {0xB5, 0xCA, 0xBE, 0x45, 0x9B, 0x79,
-                                 0x4D, 0x1B, 0x0A, 0x0A, 0x65, 0x50,
-                                 0xA0, 0x48, 0x42, 0x25};
+const char APPKEY[16] PROGMEM = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                                 0x00, 0x00, 0x00, 0x00};
 
 // The pin to which the sensor is wired
 #define GEIGER_PIN 26
 
 // Uncomment this line to disable all serial printing
 // #define NO_SERIAL
+
+// Comment this line to prevent the printing of the lora keys
+#define PRINT_KEYS
+
+// Controls wether packets should be printed onto the hardware serial
+// in addition to being seind over lora.
+// #define PRINT_PACKETS
 
 // The following settings control the packet sending behaviour. Due to the
 // overhead a package might have (at least 13 bytes) combining as many
@@ -29,12 +36,12 @@ const char APPKEY[16] PROGMEM = {0xB5, 0xCA, 0xBE, 0x45, 0x9B, 0x79,
 
 // The number of seconds between two lora packets.
 // DEFAULT: 900
-#define SEND_PERIOD 30
+#define SEND_PERIOD 900
 
 // The number of measurements transferred per packet. If this number gets to
 // high and error will occur during compilation, as a lmic lora packet may only
 // contain 51 bytes DEFAULT: 10
-#define NUM_MEASUREMENTS 1
+#define NUM_MEASUREMENTS 10
 
 // This can be used to prevent sending of data if nothing was counted by the
 // sensor yet. As this brakes the constant time assumption between measurements
@@ -47,20 +54,24 @@ const char APPKEY[16] PROGMEM = {0xB5, 0xCA, 0xBE, 0x45, 0x9B, 0x79,
 // transmitted numbers, but also reduces the number of bytes required to
 // transfer a given value. The default of 2 leads to all transmitted numbers
 // being multiples of four. This introduces an error of at most 2, but allows
-// for transmitting 512 in a sinle byte using variable byte encoding. DEFAULT: 2
+// for transmitting 512 in a sinle byte using variable byte encoding.
+// DEFAULT: 2
 #define DISCARDED_BITS 2
 
 // Use at most 3 bytes to encode each measurement when sending the data via
 // lora.
+// DEFAULT: 3
 #define MAX_BYTES_PER_COUNT 3
 
 // If the last packet has not yet been send properly new packets will land in a
 // queue to be send as soon as possible. This determines the maximum number of
 // packets that can be in that queue
+// DEFAULT: 3
 #define PACKET_QUEUE_LENGTH 3
 
-// The lora port to which packages containing data should be send
-#define LORA_DATA_PORT 0
+// The lora port to which packages containing data should be send. Do not use port 0.
+// DEFAULT: 1
+#define LORA_DATA_PORT 1
 
 // CONFIG CHECKS
 // =============================================================================
@@ -75,14 +86,16 @@ const char APPKEY[16] PROGMEM = {0xB5, 0xCA, 0xBE, 0x45, 0x9B, 0x79,
 // LMIC STATIC CONFIG
 // =============================================================================
 
+#define CFG_eu868 1
+
 // Select the correct radio chip config
-#ifdef TTGOV21
+#if defined(TTGOV21)
 #define CFG_sx1276_radio 1
-#elif TTGOV21_OLD
+#elif defined(TTGOV21_OLD)
 #define CFG_sx1276_radio 1
-#elif HELTEC32_1
+#elif defined(HELTEC32_1)
 #define CFG_sx1276_radio 1
-#elif HELTEC32_2
+#elif defined(HELTEC32_2)
 #define CFG_sx1276_radio 1
 #else
 #error No Board Selected
@@ -94,36 +107,54 @@ const char APPKEY[16] PROGMEM = {0xB5, 0xCA, 0xBE, 0x45, 0x9B, 0x79,
 // Contains the lmic_pinmap type
 #include "src/lmic/hal/hal.h"
 
-// TODO(florian): in hal.cpp:80 the SPI.begin call needs to receive the correct
-// pins for the communication to work (for ttgov1.2 they are 5, 19, 27, 18)
+#include "SPI.h"
+#include "src/queue/queue.h"
 
 // setup the pin map
-#ifdef TTGOV21
-const lmic_pinmap lmic_pins = {.nss = 18,
-                               .rxtx = LMIC_UNUSED_PIN,
-                               .rst = 23,
-                               .dio = {26, 33, 32}};
-#elif TTGOV21_OLD
+#if defined(TTGOV21)
+#define LORA_SCK 5
+#define LORA_MISO 19
+#define LORA_MOSI 27
+#define LORA_SS 18
+#elif defined(TTGOV21_OLD)
+#define LORA_SCK 5
+#define LORA_MISO 19
+#define LORA_MOSI 27
+#define LORA_SS 18
+#elif defined(HELTEC32_1)
+#define LORA_SCK 5
+#define LORA_MISO 19
+#define LORA_MOSI 27
+#define LORA_SS 18
+#elif defined(HELTEC32_2)
+#define LORA_SCK 5
+#define LORA_MISO 19
+#define LORA_MOSI 27
+#define LORA_SS 18
+#endif
+
+#if defined(TTGOV21)
+const lmic_pinmap lmic_pins = {
+    .nss = 18,
+    .rxtx = LMIC_UNUSED_PIN,
+    .rst = 23,
+    .dio = {26, 33, 32},
+};
+#elif defined(TTGOV21_OLD)
 const lmic_pinmap lmic_pins = {.nss = 18,
                                .rxtx = LMIC_UNUSED_PIN,
                                .rst = LMIC_UNUSED_PIN,
                                .dio = {26, 33, 32}};
-#elif HELTEC32_1
+#elif defined(HELTEC32_1)
 const lmic_pinmap lmic_pins = {.nss = 18,
                                .rxtx = LMIC_UNUSED_PIN,
                                .rst = 14,
-                               .dio = {26, 33, 32},
-                               .sck = 5,
-                               .mosi = 27,
-                               .miso = 19};
-#elif HELTEC32_2
+                               .dio = {26, 33, 32}};
+#elif defined(HELTEC32_2)
 const lmic_pinmap lmic_pins = {.nss = 18,
                                .rxtx = LMIC_UNUSED_PIN,
                                .rst = 14,
-                               .dio = {26, 33, 32},
-                               .sck = 5,
-                               .mosi = 27,
-                               .miso = 19};
+                               .dio = {26, 33, 32}};
 #endif
 
 // GLOBALS
@@ -142,16 +173,87 @@ osjob_t geiger_counter_job;
 const uint_fast16_t MEASUREMENT_PERIOD_SECONDS = SEND_PERIOD / NUM_MEASUREMENTS;
 
 const uint_fast8_t PACKET_BUFFER_SIZE = 50;
-unsigned char packet_buffers[PACKET_BUFFER_SIZE * PACKET_QUEUE_LENGTH];
-uint_fast8_t packet_lengths[PACKET_QUEUE_LENGTH];
-uint_fast8_t packet_queue_index = 0;
-uint_fast8_t packet_queue_length = 0;
+FixedSizeQueue packet_queue;
 
 // This number is added to a measurement before any bits are discaded to reduce
 // the maximum error.
 const uint_fast32_t DISCARDED_BITS_ROUNDING =
     (DISCARDED_BITS > 0 ? 1 << (DISCARDED_BITS - 1) : 0);
 // LMIC CALLBACKS
+// =============================================================================
+
+/**
+   @brief Writes the device eui to buf
+*/
+void os_getDevEui(u1_t *buf) { memcpy_P(buf, DEVEUI, 8); }
+
+/**
+   @brief Writes the application eui to buf
+*/
+void os_getArtEui(u1_t *buf) { memcpy_P(buf, APPEUI, 8); }
+
+/**
+   @brief Writes the application key to buf
+*/
+void os_getDevKey(u1_t *buf) { memcpy_P(buf, APPKEY, 16); }
+
+/**
+   @brief Handler function for all lmic callbacks.
+*/
+void onEvent(ev_t ev) {
+  switch (ev) {
+    case EV_JOINING:
+#ifndef NO_SERIAL
+      Serial.println("Trying to join...");
+      printLoraKeys();
+#endif
+      break;
+    case EV_JOINED:
+#ifndef NO_SERIAL
+      Serial.println("Join succesful");
+#endif
+      // Disable periodic connection checks. Must only be called once a session
+      // has established. If this is enabled lmic requests and requires a
+      // response be sent every couple of uplink packages. Otherwise the
+      // connection is considered dead and the datarate lowered.
+      LMIC_setLinkCheckMode(0);
+      break;
+    case EV_JOIN_FAILED:
+#ifndef NO_SERIAL
+      Serial.println("Join failed");
+#endif
+      break;
+    case EV_REJOIN_FAILED:
+#ifndef NO_SERIAL
+      Serial.println("Rejoin failed");
+#endif
+      break;
+    case EV_RXCOMPLETE:
+      // handle downstream data
+      break;
+    case EV_TXCOMPLETE:
+      // Send the next queued message.
+      sendNextPacket();
+      break;
+    case EV_LINK_DEAD:
+#ifndef NO_SERIAL
+      Serial.println("lmic link is dead");
+#endif
+      break;
+    case EV_LINK_ALIVE:
+#ifndef NO_SERIAL
+      Serial.println("lmic link is alive");
+#endif
+      break;
+    default:
+#ifndef NO_SERIAL
+      Serial.print("lmic event ");
+      Serial.println((uint8_t)ev);
+#endif
+  }
+}
+
+// COUNTING AND NETWORK
 // =============================================================================
 
 void printHex(u1_t *buf, int count) {
@@ -163,97 +265,26 @@ void printHex(u1_t *buf, int count) {
 #endif
 }
 
-/**
-   @brief Writes the device eui to buf
-*/
-void os_getDevEui(u1_t *buf) {
-  memcpy_P(buf, DEVEUI, 8);
+void printLoraKeys() {
+#ifdef PRINT_KEYS
+  uint8_t buf[16];
 #ifndef NO_SERIAL
   Serial.print("DEVEUI ");
+  memcpy_P(buf, DEVEUI, 8);
   printHex(buf, 8);
   Serial.println();
-#endif
-}
 
-/**
-   @brief Writes the application eui to buf
-*/
-void os_getArtEui(u1_t *buf) {
-  memcpy_P(buf, APPEUI, 8);
-#ifndef NO_SERIAL
   Serial.print("APPEUI ");
+  memcpy_P(buf, APPEUI, 8);
   printHex(buf, 8);
   Serial.println();
-#endif
-}
 
-/**
-   @brief Writes the application key to buf
-*/
-void os_getDevKey(u1_t *buf) {
-  memcpy_P(buf, APPKEY, 16);
-#ifndef NO_SERIAL
   Serial.print("APPKEY ");
+  memcpy_P(buf, APPKEY, 16);
   printHex(buf, 16);
   Serial.println();
 #endif
-}
-
-/**
-   @brief Handler function for all lmic callbacks.
-*/
-void onEvent(ev_t ev) {
-  switch (ev) {
-  case EV_JOINING:
-#ifndef NO_SERIAL
-    Serial.println("Trying to join...");
 #endif
-    break;
-  case EV_JOINED:
-#ifndef NO_SERIAL
-    Serial.println("Join succesful");
-#endif
-    // Disable periodic connection checks. Must only be called once a session
-    // has established. If this is enabled lmic requests and requires a response
-    // be sent every couple of uplink packages. Otherwise the connection is
-    // considered dead and the datarate lowered.
-    LMIC_setLinkCheckMode(0);
-    break;
-  case EV_JOIN_FAILED:
-#ifndef NO_SERIAL
-    Serial.println("Join failed");
-#endif
-    break;
-  case EV_REJOIN_FAILED:
-#ifndef NO_SERIAL
-    Serial.println("Rejoin failed");
-#endif
-    break;
-  case EV_RXCOMPLETE:
-    // handle downstream data
-    break;
-  case EV_TXCOMPLETE:
-    // Send the next queued message.
-    sendNextPacket();
-    break;
-  case EV_LINK_DEAD:
-#ifndef NO_SERIAL
-    Serial.println("lmic link is dead");
-#endif
-    break;
-  case EV_LINK_ALIVE:
-#ifndef NO_SERIAL
-    Serial.println("lmic link is alive");
-#endif
-    break;
-  }
-}
-
-// COUNTING AND NETWORK
-// =============================================================================
-
-unsigned char *getQueueEntry(unsigned int index) {
-  return packet_buffers + index * PACKET_BUFFER_SIZE;
 }
 
 /**
@@ -270,39 +301,28 @@ void IRAM_ATTR onGeigerCounterSignal() { geiger_counts[geiger_counts_index]++; }
 // Remove the last package from the queue. Look at the next entry and check if a
 // packet is queued.
 void sendNextPacket() {
-  packet_queue_index++;
-  packet_queue_index %= PACKET_QUEUE_LENGTH;
-  // Avoid underflows
-  if (packet_queue_length > 0) {
-    packet_queue_length--;
+  if (fsq_size(&packet_queue) > 0) {
+    uint8_t *data;
+    uint8_t packet_length;
+    fsq_front(&packet_queue, &data, &packet_length);
     // Set the next packet to be send
-    LMIC_setTxData2(LORA_DATA_PORT, getQueueEntry(packet_queue_index),
-                    packet_lengths[packet_queue_index], 0);
+    LMIC_setTxData2(LORA_DATA_PORT, data, packet_length, 0);
 #ifndef NO_SERIAL
-    Serial.print("Data ");
-    Serial.println(packet_lengths[packet_queue_index]);
-    printHex(getQueueEntry(packet_queue_index),
-             packet_lengths[packet_queue_index]);
+    Serial.print("Data of length ");
+    Serial.println(packet_length);
+    printHex(data, packet_length);
     Serial.println();
     Serial.println("Data Done");
 #endif
+    fsq_pop(&packet_queue);
   }
 }
 
 // Resets the geiger_counters and queues a new lora package for sending
 void finishCountingCycle() {
-  uint_fast8_t *length;
-  unsigned char *buffer;
-  if (packet_queue_length >= PACKET_QUEUE_LENGTH) {
-    // The queue is full, override the next package
-    packet_queue_length = 1;
-  }
-  // Set length and buffer to the next free entry in the queue
-  uint_fast8_t i =
-      (packet_queue_index + packet_queue_length) % PACKET_QUEUE_LENGTH;
-  length = &packet_lengths[i];
-  buffer = getQueueEntry(i);
-  packet_queue_length++;
+  uint8_t *length;
+  uint8_t *buffer;
+  fsq_push_ref(&packet_queue, &buffer, &length);
 
   uint_fast8_t offset = 0;
   ostime_t now = os_getTime();
@@ -313,8 +333,8 @@ void finishCountingCycle() {
   uint_fast16_t sec = osticks2ms(now) / 1000;
 
   // write the current timer in seconds to the buffer in network byte order
-  buffer[offset] = sec & 0xFF;
-  buffer[offset + 1] = (sec >> 8) & 0xFF;
+  buffer[offset + 1] = sec & 0xFF;
+  buffer[offset] = (sec >> 8) & 0xFF;
   offset += 2;
 
   // Iterate over all measurements of the last cycle
@@ -343,18 +363,13 @@ void finishCountingCycle() {
   }
   *length = offset;
 
-  if (packet_queue_length == 1) {
+  if (fsq_size(&packet_queue) == 1 && !(LMIC.opmode & OP_TXRXPEND)) {
     // No other packets were queued, the package sending needs to be
     // initialized. If packet_queue_length was greater than one another packet
     // is waiting to be transfered by lmic and sendNextPacket will be called as
     // soon as that packet was send.
-    // LMIC_setTxData2(LORA_DATA_PORT, buffer,
-    // packet_lengths[packet_queue_index],
-    //                 0);
     sendNextPacket();
   }
-  // TODO: DEBUG CODE
-  sendNextPacket();
 }
 
 // Moves to the next entry in the geiger_counts array
@@ -364,7 +379,9 @@ void finishCountingBlock(osjob_t *j) {
   // check if we collected enough measurements for the next lora package
   if (geiger_counts_index >= NUM_MEASUREMENTS) {
     finishCountingCycle();
+    geiger_counts_index = 0;
   }
+  geiger_counts[geiger_counts_index] = 0;
   enableGeigerInterrupt();
 
   // reschedule this
@@ -389,9 +406,12 @@ void disableGeigerInterrupt() {
    @brief Initializes the lorawan join.
 */
 void initLMIC(osjob_t *job) {
+#ifndef NO_SERIAL
+  Serial.println("Initializing lora.");
+#endif
   LMIC_reset();
   LMIC_startJoining();
-  LMIC_setClockError(0.2 * MAX_CLOCK_ERROR);
+  LMIC_setClockError(0.05 * MAX_CLOCK_ERROR);
   // use sf7 at 14db
   LMIC_setDrTxpow(DR_SF7, 14);
 }
@@ -402,8 +422,17 @@ void setup() {
   Serial.println("Beginning setup");
 #endif
 
+  // Initialize the packet queue
+  fsq_init(&packet_queue, PACKET_BUFFER_SIZE, PACKET_QUEUE_LENGTH);
+
   // The PiGI board does its own external pullup of these pins
   pinMode(GEIGER_PIN, INPUT);
+
+#ifndef NO_SERIAL
+  Serial.println("Initializing lmic.");
+#endif
+
+  SPI.begin(LORA_SCK, LORA_MISO, LORA_MOSI, LORA_SS);
 
   // initialize the lmic environment
   os_init();

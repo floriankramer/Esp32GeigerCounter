@@ -1,7 +1,7 @@
-// Interprets the next four bytes from off onwards as a network byte order
-// 32 bit unsigned integer
+// Interprets the next two bytes from off onwards as a network byte order
+// 16 bit unsigned integer
 function readInt16(bytes, off) {
-  return bytes[off] + (bytes[off + 1] << 8);
+  return bytes[off + 1] + (bytes[off] << 8);
 }
 
 // Decodes a variable byte encoded integer at pos off
